@@ -2,292 +2,234 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ability Wars 2D - Multiplayer Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Shindo PvP Arena</title>
     <style>
-        body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; cursor: crosshair; }
-        canvas { border: 4px solid #111; background: #3B7D23; }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; pointer-events: none; text-shadow: 1px 1px 2px black; line-height: 1.4; z-index: 10; }
-        .ability-text { color: #00ffff; font-weight: bold; }
-        #toast { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.9); color: gold; padding: 10px; border: 2px solid gold; border-radius: 5px; display: none; font-weight: bold; z-index: 100; }
-        #energy-container { position: absolute; width: 800px; height: 800px; pointer-events: none; display: none; }
-        .energy-bar { position: absolute; bottom: 100px; width: 15px; height: 180px; background: rgba(0,0,0,0.5); border: 2px solid white; }
-        #energy-left { left: 15px; }
-        #energy-right { right: 15px; }
-        .energy-fill { position: absolute; bottom: 0; width: 100%; height: 75%; transition: height 0.1s; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0c0d12; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; background: #1c221a; }
+
+        /* Left-Middle Main Menu */
+        #main-menu {
+            position: absolute;
+            top: 50%;
+            left: 5%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .menu-title {
+            font-size: 36px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            color: #ff4500;
+            text-shadow: 0 0 10px rgba(255, 69, 0, 0.6);
+            margin: 0 0 10px 0;
+        }
+
+        .menu-item {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ccc;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            user-select: none;
+            width: fit-content;
+        }
+
+        .menu-item:hover {
+            color: #ff4500;
+            transform: translateX(10px);
+            text-shadow: 0 0 8px rgba(255, 69, 0, 0.8);
+        }
+
+        /* Split Spin Screen */
+        #spin-screen {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(10, 10, 15, 0.95);
+            z-index: 20;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spin-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .spins-counter {
+            font-size: 20px;
+            color: #ffaa00;
+            font-weight: bold;
+        }
+
+        .split-container {
+            display: flex;
+            width: 80%;
+            max-width: 900px;
+            height: 350px;
+            border: 2px solid #ff4500;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #14161f;
+        }
+
+        .spin-section {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .spin-section:first-child {
+            border-right: 2px solid #ff4500;
+        }
+
+        .scroll-display {
+            width: 100%;
+            background: #202433;
+            border: 1px solid #444;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #00ffcc;
+        }
+
+        .btn {
+            background: #ff4500;
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn:hover { background: #ff6a33; }
+        .btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+        /* HUD Overlay */
+        #hud {
+            display: none;
+            position: absolute;
+            top: 15px; left: 15px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
     </style>
-    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
-<div id="ui">
-    <strong id="locText">LOBBY</strong><br>
-    Punches: <span id="punchCount">0</span><br>
-    Equipped: <span id="equippedText" class="ability-text">None</span><br>
-    Inventory: <span id="invText">None</span><br>
-    <small id="instructions">Interact/Buy: (Z) | Secondary: (Q) | Primary: (E) | Punch: Click | Reset: (1)</small>
+<div id="game-container">
+    <canvas id="canvas"></canvas>
+
+    <div id="main-menu">
+        <h1 class="menu-title">SHINDO 2D</h1>
+        <div class="menu-item" onclick="enterPVP()">PVP ARENA</div>
+        <div class="menu-item" onclick="openSpinMenu()">SPIN & SCROLLS</div>
+    </div>
+
+    <div id="spin-screen">
+        <div class="spin-header">
+            <h2>SCROLL SPINNER</h2>
+            <div class="spins-counter">Spins Left: <span id="spin-count">10</span></div>
+        </div>
+
+        <div class="split-container">
+            <div class="spin-section">
+                <h3>ELEMENTS</h3>
+                <div class="scroll-display" id="element-display">None</div>
+                <button class="btn" id="element-btn" onclick="spinElement()">Roll Element</button>
+            </div>
+
+            <div class="spin-section">
+                <h3>BLOODLINES</h3>
+                <div class="scroll-display" id="bloodline-display">None</div>
+                <button class="btn" id="bloodline-btn" onclick="spinBloodline()">Roll Bloodline</button>
+            </div>
+        </div>
+
+        <br>
+        <button class="btn" style="background: #333;" onclick="closeSpinMenu()">Back to Menu</button>
+    </div>
+
+    <div id="hud">
+        <div><strong>HP:</strong> <span id="hp-val">100</span> / 100</div>
+        <div><strong>Element:</strong> <span id="hud-elem">None</span></div>
+        <div><strong>Bloodline:</strong> <span id="hud-bl">None</span></div>
+        <div><strong>Players in Match:</strong> <span id="player-count">1</span>/5</div>
+    </div>
 </div>
 
-<div id="energy-container">
-    <div id="energy-left" class="energy-bar"><div id="fill-left" class="energy-fill" style="background: #ff4444;"></div></div>
-    <div id="energy-right" class="energy-bar"><div id="fill-right" class="energy-fill" style="background: #00ffff;"></div></div>
-</div>
-
-<div id="toast">Badge Unlocked!</div>
-<canvas id="gameCanvas" width="800" height="800"></canvas>
-
+<script src="/socket.io/socket.io.js"></script>
+<script src="multiplayer.js"></script>
 <script>
-    const socket = io();
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const punchLabel = document.getElementById('punchCount');
-    const locLabel = document.getElementById('locText');
-    const eqLabel = document.getElementById('equippedText');
-    const invLabel = document.getElementById('invText');
-    const toast = document.getElementById('toast');
-    const energyUI = document.getElementById('energy-container');
+    let totalSpins = 10;
+    let currentElement = "None";
+    let currentBloodline = "None";
 
-    let myId = null;
-    let remotePlayers = {};
-    let punches = 0;
-    let gameState = 'LOBBY'; 
-    let mouseX = 0, mouseY = 0;
-    let projectiles = [];
-    let particles = []; 
-    let warningCircles = []; 
-    let repulsionBubbles = [];
-    let crops = [];
+    const elementsPool = ["Lightning", "Air", "Water", "Fire"];
+    const bloodlinePool = ["Akuma", "Rengoku", "Sengoku", "Ember"];
 
-    const abilities = {
-        'Dash': { cost: 10, color: '#ffffff', type: 'normal' },
-        'Fireball': { cost: 25, color: '#ff4500', type: 'normal' },
-        'Ground Slam': { cost: 50, color: '#8b4513', type: 'normal' },
-        'Deflect': { cost: 300, color: '#C0C0C0', type: 'normal' },
-        'Magnet': { cost: 400, color: '#ff0000', type: 'normal' }
-    };
-    
-    let unlocked = ['None'];
-    let equippedAbility = 'None';
-    const lobbyWalls = [{ x: 50, y: 50, w: 700, h: 20 }, { x: 50, y: 730, w: 700, h: 20 }, { x: 50, y: 50, w: 20, h: 700 }, { x: 730, y: 50, w: 20, h: 700 }];
-    const pedestals = [
-        { x: 100, y: 350, w: 40, h: 40, ability: 'Dash', room: 'LOBBY' },
-        { x: 230, y: 350, w: 40, h: 40, ability: 'Fireball', room: 'LOBBY' },
-        { x: 360, y: 350, w: 40, h: 40, ability: 'Ground Slam', room: 'LOBBY' },
-        { x: 490, y: 350, w: 40, h: 40, ability: 'Deflect', room: 'LOBBY' },
-        { x: 620, y: 350, w: 40, h: 40, ability: 'Magnet', room: 'LOBBY' }
-    ];
-    const portals = { arena: { x: 375, y: 70, w: 50, h: 40 } };
+    function openSpinMenu() {
+        document.getElementById('spin-screen').style.display = 'flex';
+    }
 
-    function createExplosion(x, y, color, count = 15) {
-        for (let i = 0; i < count; i++) {
-            particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, size: Math.random() * 5 + 2, alpha: 1.0, color: color, decay: Math.random() * 0.03 + 0.01 });
+    function closeSpinMenu() {
+        document.getElementById('spin-screen').style.display = 'none';
+    }
+
+    function updateSpinUI() {
+        document.getElementById('spin-count').innerText = totalSpins;
+        if (totalSpins <= 0) {
+            document.getElementById('element-btn').disabled = true;
+            document.getElementById('bloodline-btn').disabled = true;
         }
     }
 
-    class Character {
-        constructor(x, y, color, isPlayer = false) {
-            this.x = x; this.y = y; this.w = 26; this.h = 26;
-            this.color = color; this.isPlayer = isPlayer;
-            this.vx = 0; this.vy = 0; this.speed = 4;
-            this.strength = 1.0; this.reach = 30;
-            this.state = 'idle'; this.angle = 0; this.lookAngle = 0;
-            this.abilityCooldown = 0;
-            this.deflectArmorTimer = 0;
-            this.magnetEnergy = 75;
-            this.magPushing = false;
-            this.magPulling = false;
-        }
-
-        update() {
-            if (this.abilityCooldown > 0) this.abilityCooldown--;
-            if (this.magnetEnergy < 100) this.magnetEnergy += 0.06;
-
-            if (this.state === 'ragdoll') {
-                this.x += this.vx; this.y += this.vy;
-                this.vx *= 0.94; this.vy *= 0.94;
-                this.angle += (Math.abs(this.vx) + Math.abs(this.vy)) * 0.1;
-                if (Math.hypot(this.vx, this.vy) < 0.3) { this.state = 'idle'; this.angle = 0; }
-            } else {
-                let dx = 0, dy = 0;
-                if (this.isPlayer) {
-                    if (keys.w) dy -= this.speed; if (keys.s) dy += this.speed;
-                    if (keys.a) dx -= this.speed; if (keys.d) dx += this.speed;
-                    this.lookAngle = Math.atan2(mouseY - (this.y + 13), mouseX - (this.x + 13));
-                    this.checkInteractions();
-                }
-                if (dx !== 0 || dy !== 0) this.moveWithCollision(dx, dy);
-            }
-            
-            if (this.x < 0) this.x = 0; if (this.x > 774) this.x = 774;
-            if (this.y < 0) this.y = 0; if (this.y > 774) this.y = 774;
-        }
-
-        moveWithCollision(dx, dy) {
-            let solids = (gameState === 'LOBBY') ? lobbyWalls : [];
-            if (!solids.some(s => isColliding({x: this.x + dx, y: this.y, w: this.w, h: this.h}, s))) this.x += dx;
-            if (!solids.some(s => isColliding({x: this.x, y: this.y + dy, w: this.w, h: this.h}, s))) this.y += dy;
-        }
-
-        checkInteractions() {
-            if (gameState === 'LOBBY') {
-                if (isColliding(this, portals.arena)) { gameState = 'ARENA'; locLabel.innerText = "ARENA"; this.x = 400; this.y = 700; }
-            }
-        }
-
-        punch() {
-            if (this.state !== 'idle') return;
-            this.state = 'punching';
-            const hitArea = { x: (this.x+13) + Math.cos(this.lookAngle)*this.reach - 15, y: (this.y+13) + Math.sin(this.lookAngle)*this.reach - 15, w: 30, h: 30 };
-            
-            Object.values(remotePlayers).forEach(v => {
-                if (v.gameState === gameState && isColliding(hitArea, v)) {
-                    socket.emit('playerAction', { type: 'applyForce', targetId: v.id, fromX: this.x, fromY: this.y, power: 15 * this.strength });
-                    punches++; punchLabel.innerText = punches;
-                }
-            });
-            setTimeout(() => { if(this.state === 'punching') this.state = 'idle'; }, 200);
-        }
-
-        useAbility(abName) {
-            if (this.abilityCooldown > 0) return;
-
-            if (abName === 'Fireball') { 
-                projectiles.push({x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*10, vy: Math.sin(this.lookAngle)*10, owner: this}); 
-                this.abilityCooldown = 30; 
-            }
-            if (abName === 'Ground Slam') { 
-                Object.values(remotePlayers).forEach(en => { 
-                    if(en.gameState === gameState && Math.hypot(en.x-this.x, en.y-this.y) < 150) {
-                        socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: this.x, fromY: this.y, power: 20 });
-                    }
-                }); 
-                this.abilityCooldown = 60; 
-            }
-            if (abName === 'Dash') { this.vx = Math.cos(this.lookAngle) * 22; this.vy = Math.sin(this.lookAngle) * 22; this.state = 'ragdoll'; this.abilityCooldown = 40; }
-        }
-
-        applyForce(fromX, fromY, power) {
-            let angle = Math.atan2(this.y - fromY, this.x - fromX);
-            this.vx = Math.cos(angle) * power; this.vy = Math.sin(angle) * power;
-            this.state = 'ragdoll';
-        }
-
-        draw() {
-            ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h/2);
-            ctx.rotate(this.state === 'ragdoll' ? this.angle : this.lookAngle);
-            ctx.fillStyle = this.color; 
-            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h); 
-            if (this.state === 'punching') { ctx.fillStyle = 'white'; ctx.fillRect(this.reach/2, -5, 12, 12); }
-            ctx.restore();
-        }
+    function spinElement() {
+        if (totalSpins <= 0) return;
+        totalSpins--;
+        const picked = elementsPool[Math.floor(Math.random() * elementsPool.length)];
+        currentElement = picked;
+        document.getElementById('element-display').innerText = picked;
+        updateSpinUI();
     }
 
-    const player = new Character(400, 500, '#ff0000', true);
-    const keys = {};
+    function spinBloodline() {
+        if (totalSpins <= 0) return;
+        totalSpins--;
+        const picked = bloodlinePool[Math.floor(Math.random() * bloodlinePool.length)];
+        currentBloodline = picked;
+        document.getElementById('bloodline-display').innerText = picked;
+        updateSpinUI();
+    }
 
-    // --- SOCKET NETWORKING ---
-    socket.on('init', (data) => {
-        myId = data.id;
-        for (let id in data.players) {
-            if (id !== myId) {
-                remotePlayers[id] = data.players[id];
-            } else {
-                player.color = data.players[id].color;
-            }
-        }
-    });
-
-    socket.on('playerJoined', (pData) => {
-        remotePlayers[pData.id] = pData;
-    });
-
-    socket.on('playerUpdated', (pData) => {
-        if (remotePlayers[pData.id]) {
-            Object.assign(remotePlayers[pData.id], pData);
-        }
-    });
-
-    socket.on('playerLeft', (id) => {
-        delete remotePlayers[id];
-    });
-
-    socket.on('remotePlayerAction', (data) => {
-        if (data.type === 'applyForce' && data.targetId === myId) {
-            player.applyForce(data.fromX, data.fromY, data.power);
-        }
-    });
-
-    window.onkeydown = e => {
-        const k = e.key.toLowerCase(); keys[k] = true;
-        if (k === 'z') {
-            pedestals.filter(p => p.room === gameState).forEach(p => {
-                if (Math.hypot(player.x - p.x, player.y - p.y) < 60) {
-                    let ab = abilities[p.ability];
-                    if (unlocked.includes(p.ability)) { equippedAbility = p.ability; eqLabel.innerText = p.ability; } 
-                    else if (punches >= ab.cost) { punches -= ab.cost; punchLabel.innerText = punches; unlocked.push(p.ability); equippedAbility = p.ability; eqLabel.innerText = p.ability; }
-                }
-            });
-        }
-        if (k === 'e') player.useAbility(equippedAbility);
-        if (k === '1') { gameState = 'LOBBY'; player.x = 400; player.y = 500; }
-    };
-
-    window.onkeyup = e => { const k = e.key.toLowerCase(); keys[k] = false; };
-    window.onmousemove = e => { const r = canvas.getBoundingClientRect(); mouseX = e.clientX - r.left; mouseY = e.clientY - r.top; };
-    window.onclick = () => { if(gameState === 'ARENA') player.punch(); };
-    function isColliding(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
-
-    function loop() {
-        ctx.clearRect(0, 0, 800, 800);
+    function enterPVP() {
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('hud').style.display = 'block';
+        document.getElementById('hud-elem').innerText = currentElement;
+        document.getElementById('hud-bl').innerText = currentBloodline;
         
-        // Sync player position to network
-        socket.emit('updateState', {
-            x: player.x, y: player.y, vx: player.vx, vy: player.vy,
-            lookAngle: player.lookAngle, state: player.state, angle: player.angle,
-            gameState: gameState, color: player.color
-        });
-
-        if (gameState === 'LOBBY') {
-            ctx.fillStyle = '#1e90ff'; ctx.fillRect(50,50,700,700);
-            ctx.fillStyle = '#00ffff'; ctx.fillRect(portals.arena.x, portals.arena.y, portals.arena.w, portals.arena.h);
-        } else if (gameState === 'ARENA') {
-            ctx.fillStyle = '#3B7D23'; ctx.fillRect(0,0,800,800);
-        }
-
-        pedestals.filter(p => p.room === gameState).forEach(p => {
-            let ab = abilities[p.ability]; ctx.fillStyle = '#666'; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = ab.color; ctx.beginPath(); ctx.arc(p.x+20, p.y-10, 15, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = 'white'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.fillText(p.ability, p.x+20, p.y+55);
-        });
-
-        // Draw Remote Players
-        Object.values(remotePlayers).forEach(p => {
-            if (p.gameState === gameState) {
-                ctx.save(); ctx.translate(p.x + p.w/2, p.y + p.h/2);
-                ctx.rotate(p.state === 'ragdoll' ? p.angle : p.lookAngle);
-                ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-                if (p.state === 'punching') { ctx.fillStyle = 'white'; ctx.fillRect(15, -5, 12, 12); }
-                ctx.restore();
-            }
-        });
-
-        // Render Projectiles
-        for (let i = projectiles.length - 1; i >= 0; i--) {
-            let p = projectiles[i];
-            p.x += p.vx; p.y += p.vy;
-            ctx.fillStyle = '#ff4500'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
-
-            Object.values(remotePlayers).forEach(en => {
-                if (en.gameState === gameState && Math.hypot(en.x+13-p.x, en.y+13-p.y) < 25) {
-                    socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: p.x, fromY: p.y, power: 15 });
-                    projectiles.splice(i, 1);
-                }
-            });
-        }
-
-        player.update();
-        player.draw();
-        requestAnimationFrame(loop);
+        startMultiplayerGame(currentElement, currentBloodline);
     }
-    loop();
 </script>
+</body>
+</html>
 </body>
 </html>
