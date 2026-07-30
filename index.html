@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ability Wars 2D - Multiplayer Edition</title>
+    <title>Ability Wars 2D - Multiplayer Ultimate Update</title>
     <style>
         body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; cursor: crosshair; }
         canvas { border: 4px solid #111; background: #3B7D23; }
@@ -24,7 +24,7 @@
     Punches: <span id="punchCount">0</span><br>
     Equipped: <span id="equippedText" class="ability-text">None</span><br>
     Inventory: <span id="invText">None</span><br>
-    <small id="instructions">Interact/Buy: (Z) | Secondary: (Q) | Primary: (E) | Punch: Click | Reset: (1)</small>
+    <small id="instructions">Interact/Buy/Mine: (Z) | Secondary: (Q) | Primary: (E) | Punch: Click | Reset: (1)</small>
 </div>
 
 <div id="energy-container">
@@ -52,30 +52,76 @@
     let gameState = 'LOBBY'; 
     let mouseX = 0, mouseY = 0;
     let projectiles = [];
+    let mushrooms = []; 
+    let soapBars = [];
     let particles = []; 
     let warningCircles = []; 
     let repulsionBubbles = [];
     let crops = [];
+    let brewingPot = null;
+    let fireballRagdolls = 0; 
+
+    // Badge tracking
+    let copyProgress = 0;
+    let pureMuralLove = null; 
+
+    const potionTypes = ["Speed Potion", "Strength Potion", "Jump Potion", "Restoration Potion", "Fungal Field Potion", "Slowness Potion", "Repulsion Potion"];
+    let inventory = { name: "None", uses: 0 };
 
     const abilities = {
         'Dash': { cost: 10, color: '#ffffff', type: 'normal' },
         'Fireball': { cost: 25, color: '#ff4500', type: 'normal' },
         'Ground Slam': { cost: 50, color: '#8b4513', type: 'normal' },
+        'Soap': { cost: 70, color: '#e0ffff', type: 'normal' },
+        'Shackle': { cost: 130, color: '#4b0082', type: 'normal' },
+        'Bounty Hunter': { cost: 150, color: '#ffd700', type: 'normal' },
+        'Overcharge': { cost: 200, color: '#ffff00', type: 'normal' },
+        'Storm': { cost: 250, color: '#00ffff', type: 'normal' },
         'Deflect': { cost: 300, color: '#C0C0C0', type: 'normal' },
-        'Magnet': { cost: 400, color: '#ff0000', type: 'normal' }
+        'Magnet': { cost: 400, color: '#ff0000', type: 'normal' },
+        'Randomize': { cost: 0, color: '#ff00ff', type: 'badge', req: 'boing' },
+        'Cake': { cost: 0, color: '#ffc0cb', type: 'badge', req: 'cake' },
+        'Alchemist': { cost: 0, color: '#9400d3', type: 'badge', req: 'alchemist' },
+        'Mech': { cost: 0, color: '#708090', type: 'badge', req: 'machinist' },
+        'Tree': { cost: 0, color: '#228B22', type: 'badge', req: 'treeMaster' },
+        'Viltrumite': { cost: 0, color: '#ff0000', type: 'badge', req: 'slayer' },
+        'Copy': { cost: 0, color: '#ff69b4', type: 'badge', req: 'copyBadge' },
+        'Farmer': { cost: 300, color: '#7CFC00', type: 'badge', req: 'cultivate' }
     };
     
     let unlocked = ['None'];
+    let badges = { 'boing': false, 'cake': false, 'alchemist': false, 'machinist': false, 'slayer': false, 'treeMaster': false, 'copyBadge': false, 'cultivate': false };
     let equippedAbility = 'None';
+
     const lobbyWalls = [{ x: 50, y: 50, w: 700, h: 20 }, { x: 50, y: 730, w: 700, h: 20 }, { x: 50, y: 50, w: 20, h: 700 }, { x: 730, y: 50, w: 20, h: 700 }];
+    const arenaSolids = [{ x: 340, y: 50, w: 120, h: 100, color: '#5C4033', id: 'shop', hidden: false }, { x: 100, y: 100, w: 60, h: 60, color: '#8B4513', id: 'tree', hidden: false }, { x: 600, y: 100, w: 120, h: 100, color: '#1E90FF', id: 'pond', hidden: false }, { x: 600, y: 600, w: 100, h: 100, color: '#4A3728', id: 'altar', hidden: false }];
+    
     const pedestals = [
         { x: 100, y: 350, w: 40, h: 40, ability: 'Dash', room: 'LOBBY' },
         { x: 230, y: 350, w: 40, h: 40, ability: 'Fireball', room: 'LOBBY' },
         { x: 360, y: 350, w: 40, h: 40, ability: 'Ground Slam', room: 'LOBBY' },
-        { x: 490, y: 350, w: 40, h: 40, ability: 'Deflect', room: 'LOBBY' },
-        { x: 620, y: 350, w: 40, h: 40, ability: 'Magnet', room: 'LOBBY' }
+        { x: 490, y: 350, w: 40, h: 40, ability: 'Soap', room: 'LOBBY' },
+        { x: 100, y: 550, w: 40, h: 40, ability: 'Shackle', room: 'LOBBY' },
+        { x: 230, y: 550, w: 40, h: 40, ability: 'Bounty Hunter', room: 'LOBBY' },
+        { x: 360, y: 550, w: 40, h: 40, ability: 'Overcharge', room: 'LOBBY' },
+        { x: 490, y: 550, w: 40, h: 40, ability: 'Storm', room: 'LOBBY' },
+        { x: 620, y: 550, w: 40, h: 40, ability: 'Deflect', room: 'LOBBY' },
+        { x: 360, y: 650, w: 40, h: 40, ability: 'Magnet', room: 'LOBBY' },
+        
+        { x: 100, y: 350, w: 40, h: 40, ability: 'Randomize', room: 'SECRET' },
+        { x: 230, y: 350, w: 40, h: 40, ability: 'Cake', room: 'SECRET' },
+        { x: 360, y: 350, w: 40, h: 40, ability: 'Alchemist', room: 'SECRET' },
+        { x: 490, y: 350, w: 40, h: 40, ability: 'Mech', room: 'SECRET' },
+        { x: 620, y: 350, w: 40, h: 40, ability: 'Tree', room: 'SECRET' },
+        { x: 230, y: 550, w: 40, h: 40, ability: 'Viltrumite', room: 'SECRET' }, 
+        { x: 360, y: 550, w: 40, h: 40, ability: 'Copy', room: 'SECRET' },
+        { x: 490, y: 550, w: 40, h: 40, ability: 'Farmer', room: 'SECRET' }
     ];
-    const portals = { arena: { x: 375, y: 70, w: 50, h: 40 } };
+
+    const portals = { arena: { x: 375, y: 70, w: 50, h: 40 }, secret: { x: 80, y: 80, w: 40, h: 40, color: 'white' }, secretExit: { x: 375, y: 70, w: 50, h: 40, color: 'black' }, atticDoor: { x: 390, y: 148, w: 20, h: 5, color: '#3d2b1f' }, atticExit: { x: 375, y: 750, w: 50, h: 40, color: '#3B7D23' } };
+    const mapItems = { mushroom: { x: 50, y: 50, w: 30, h: 30, color: '#ff69b4' }, cake: { x: 600, y: 200, w: 25, h: 25, color: '#ffc0cb' }, cauldron: { x: 400, y: 400, r: 35, color: '#111' }, cobweb: { x: 50, y: 50, w: 50, h: 50, color: 'rgba(255,255,255,0.4)' } };
+
+    function showToast(text) { toast.innerText = `Unlocked: ${text}`; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 4000); }
 
     function createExplosion(x, y, color, count = 15) {
         for (let i = 0; i < count; i++) {
@@ -90,7 +136,14 @@
             this.vx = 0; this.vy = 0; this.speed = 4;
             this.strength = 1.0; this.reach = 30;
             this.state = 'idle'; this.angle = 0; this.lookAngle = 0;
+            
             this.abilityCooldown = 0;
+            this.copyCooldown = 0;
+            this.viltrumiteTimer = 0; 
+            this.isCombo = false; 
+            this.isMech = false; 
+            this.shockTimer = 0; this.shockActive = true; 
+            
             this.deflectArmorTimer = 0;
             this.magnetEnergy = 75;
             this.magPushing = false;
@@ -99,6 +152,9 @@
 
         update() {
             if (this.abilityCooldown > 0) this.abilityCooldown--;
+            if (this.copyCooldown > 0) this.copyCooldown--;
+            if (this.shockTimer > 0) this.shockTimer--;
+            
             if (this.magnetEnergy < 100) this.magnetEnergy += 0.06;
 
             if (this.state === 'ragdoll') {
@@ -109,12 +165,23 @@
             } else {
                 let dx = 0, dy = 0;
                 if (this.isPlayer) {
+                    this.isMech = (equippedAbility === 'Mech');
                     if (keys.w) dy -= this.speed; if (keys.s) dy += this.speed;
                     if (keys.a) dx -= this.speed; if (keys.d) dx += this.speed;
                     this.lookAngle = Math.atan2(mouseY - (this.y + 13), mouseX - (this.x + 13));
                     this.checkInteractions();
+                    
+                    if (equippedAbility === 'Magnet') {
+                        energyUI.style.display = 'block';
+                        document.getElementById('fill-left').style.height = this.magnetEnergy + '%';
+                        document.getElementById('fill-right').style.height = this.magnetEnergy + '%';
+                    } else { energyUI.style.display = 'none'; }
                 }
+                
+                let ox = 0, oy = 0;
+                if (this.shockTimer > 0) { ox = (Math.random()-0.5) * 8; oy = (Math.random()-0.5) * 8; }
                 if (dx !== 0 || dy !== 0) this.moveWithCollision(dx, dy);
+                this.x += ox; this.y += oy;
             }
             
             if (this.x < 0) this.x = 0; if (this.x > 774) this.x = 774;
@@ -122,7 +189,7 @@
         }
 
         moveWithCollision(dx, dy) {
-            let solids = (gameState === 'LOBBY') ? lobbyWalls : [];
+            let solids = (gameState === 'LOBBY' || gameState === 'SECRET') ? lobbyWalls : (gameState === 'ARENA' ? arenaSolids.filter(s=>!s.hidden) : []);
             if (!solids.some(s => isColliding({x: this.x + dx, y: this.y, w: this.w, h: this.h}, s))) this.x += dx;
             if (!solids.some(s => isColliding({x: this.x, y: this.y + dy, w: this.w, h: this.h}, s))) this.y += dy;
         }
@@ -130,6 +197,15 @@
         checkInteractions() {
             if (gameState === 'LOBBY') {
                 if (isColliding(this, portals.arena)) { gameState = 'ARENA'; locLabel.innerText = "ARENA"; this.x = 400; this.y = 700; }
+                if (isColliding(this, portals.secret)) { gameState = 'SECRET'; locLabel.innerText = "SECRET ROOM"; this.x = 400; this.y = 350; }
+            } else if (gameState === 'ARENA') {
+                if (isColliding(this, portals.atticDoor)) { gameState = 'ATTIC'; locLabel.innerText = "SHOP ATTIC"; this.x = 400; this.y = 600; }
+                if (isColliding(this, mapItems.mushroom) && !badges.boing) { badges.boing = true; showToast('boing'); this.applyForce(mapItems.mushroom.x, mapItems.mushroom.y, 25, false); }
+            } else if (gameState === 'SECRET') {
+                if (isColliding(this, portals.secretExit)) { gameState = 'LOBBY'; locLabel.innerText = "LOBBY"; this.x = 220; this.y = 220; }
+                if (isColliding(this, mapItems.cake) && !badges.cake) { badges.cake = true; showToast('the cake is a lie'); }
+            } else if (gameState === 'ATTIC') {
+                if (isColliding(this, portals.atticExit)) { gameState = 'ARENA'; locLabel.innerText = "ARENA"; this.x = 400; this.y = 160; }
             }
         }
 
@@ -140,76 +216,113 @@
             
             Object.values(remotePlayers).forEach(v => {
                 if (v.gameState === gameState && isColliding(hitArea, v)) {
-                    socket.emit('playerAction', { type: 'applyForce', targetId: v.id, fromX: this.x, fromY: this.y, power: 15 * this.strength });
+                    let force = 15 * this.strength;
+                    if (equippedAbility === 'Overcharge' && this.shockActive) { force *= 1.8; this.shockActive = false; setTimeout(() => this.shockActive = true, 2000); }
+                    
+                    socket.emit('playerAction', { type: 'applyForce', targetId: v.id, fromX: this.x, fromY: this.y, power: force });
                     punches++; punchLabel.innerText = punches;
+                    if (equippedAbility === 'Magnet') this.magnetEnergy = Math.min(100, this.magnetEnergy+5);
                 }
             });
             setTimeout(() => { if(this.state === 'punching') this.state = 'idle'; }, 200);
         }
 
         useAbility(abName) {
+            if (abName === 'Overcharge') {
+                let existingJav = projectiles.find(p => p.type === 'javelin' && p.owner === this && !p.dead);
+                if (existingJav) { existingJav.explode(); return; }
+            }
+
             if (this.abilityCooldown > 0) return;
 
-            if (abName === 'Fireball') { 
-                projectiles.push({x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*10, vy: Math.sin(this.lookAngle)*10, owner: this}); 
-                this.abilityCooldown = 30; 
+            if (abName === 'Deflect') { this.deflectArmorTimer = 600; this.abilityCooldown = 900; createExplosion(this.x, this.y, 'silver', 20); }
+            if (abName === 'RepulsionBubble') { repulsionBubbles.push({ x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*3.5, vy: Math.sin(this.lookAngle)*3.5, timer: 1020, owner: this }); this.abilityCooldown = 400; }
+            if (abName === 'Storm') {
+                createExplosion(this.x+13, this.y+13, 'cyan', 20);
+                let targetX = this.x + Math.cos(this.lookAngle) * 300; let targetY = this.y + Math.sin(this.lookAngle) * 300;
+                this.x = Math.max(0, Math.min(800-this.w, targetX)); this.y = Math.max(0, Math.min(800-this.h, targetY));
+                for (let i = 0; i < 5; i++) { warningCircles.push({ x: Math.random() * 700 + 50, y: Math.random() * 700 + 50, timer: 120, owner: this }); }
+                this.abilityCooldown = 200;
             }
-            if (abName === 'Ground Slam') { 
-                Object.values(remotePlayers).forEach(en => { 
-                    if(en.gameState === gameState && Math.hypot(en.x-this.x, en.y-this.y) < 150) {
-                        socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: this.x, fromY: this.y, power: 20 });
+            if (abName === 'Overcharge') {
+                projectiles.push({
+                    x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*22, vy: Math.sin(this.lookAngle)*22, 
+                    type: 'javelin', owner: this, fuse: 120, stuck: null, dead: false,
+                    explode: function() { 
+                        if(this.dead) return; this.dead = true; createExplosion(this.x, this.y, '#ffff00', 30); 
+                        Object.values(remotePlayers).forEach(t => { if(t.gameState === gameState && Math.hypot(t.x-this.x, t.y-this.y) < 120) {
+                            socket.emit('playerAction', { type: 'applyForce', targetId: t.id, fromX: this.x, fromY: this.y, power: 25 });
+                        }});
                     }
-                }); 
-                this.abilityCooldown = 60; 
+                });
+                this.abilityCooldown = 120;
+            }
+            if (abName === 'Soap') { soapBars.push({ x: this.x+13, y: this.y+13, vx:0, vy:0, timer: 900, owner: this, hitCounts: new Map() }); this.abilityCooldown = 150; }
+            if (abName === 'Fireball') { projectiles.push({x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*10, vy: Math.sin(this.lookAngle)*10, type: 'fireball', owner: this}); this.abilityCooldown = 30; }
+            if (abName === 'Ground Slam') { 
+                Object.values(remotePlayers).forEach(en => { if(en.gameState === gameState && Math.hypot(en.x-this.x, en.y-this.y) < 150) {
+                    socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: this.x, fromY: this.y, power: 20 });
+                }}); this.abilityCooldown = 60; 
             }
             if (abName === 'Dash') { this.vx = Math.cos(this.lookAngle) * 22; this.vy = Math.sin(this.lookAngle) * 22; this.state = 'ragdoll'; this.abilityCooldown = 40; }
+            
+            if (abName === 'Mech') { this.abilityCooldown = 450; for(let i=0; i<20; i++) { setTimeout(() => { let type = (i % 12 === 0) ? 'rocket' : 'beam'; projectiles.push({x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle + (Math.random()-0.5)*0.2)*15, vy: Math.sin(this.lookAngle + (Math.random()-0.5)*0.2)*15, type: type, owner: this}); }, i * 125); } }
+            if (abName === 'Tree') { this.color = '#5D4033'; createExplosion(this.x+13, this.y+13, '#228B22', 25); 
+                Object.values(remotePlayers).forEach(en => { if(en.gameState === gameState && Math.hypot(en.x-this.x, en.y-this.y) < 85) {
+                    socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: this.x, fromY: this.y, power: 40 });
+                }}); setTimeout(() => this.color = 'red', 1000); this.abilityCooldown = 150; 
+            }
+            if (abName === 'Cake') { projectiles.push({x: this.x+13, y: this.y+13, vx: Math.cos(this.lookAngle)*12, vy: Math.sin(this.lookAngle)*12, type: 'cake', owner: this}); this.abilityCooldown = 40; }
+            if (abName === 'Alchemist') { brewingPot = { x: this.x, y: this.y, index: 0, timer: 300 }; this.abilityCooldown = 900; }
+            if (abName === 'Randomize') { const rng = Math.random(); if (rng < 0.3) this.speed += 2; else if (rng < 0.6) { this.w = 40; this.h = 40; setTimeout(()=>{this.w=26;this.h=26}, 5000); } else this.applyForce(this.x, this.y+100, 20, false); this.abilityCooldown = 100; }
+            if (abName === 'Farmer') {
+                for (let i = 0; i < 3; i++) { crops.push({ x: this.x + Math.random()*60 - 30, y: this.y + Math.random()*60 - 30, type: Math.floor(Math.random()*10), growTimer: 120, life: 60 * 60 * 5 }); }
+                createExplosion(this.x, this.y, '#7CFC00', 20); this.abilityCooldown = 120;
+            }
         }
 
-        applyForce(fromX, fromY, power) {
+        applyForce(fromX, fromY, power, vertical = false) {
+            if (this.deflectArmorTimer > 0) return; 
             let angle = Math.atan2(this.y - fromY, this.x - fromX);
-            this.vx = Math.cos(angle) * power; this.vy = Math.sin(angle) * power;
+            if (vertical) { this.vx = (Math.random()-0.5)*5; this.vy = -power; } 
+            else { this.vx = Math.cos(angle) * power; this.vy = Math.sin(angle) * power; }
             this.state = 'ragdoll';
         }
 
         draw() {
             ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h/2);
             ctx.rotate(this.state === 'ragdoll' ? this.angle : this.lookAngle);
-            ctx.fillStyle = this.color; 
-            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h); 
-            if (this.state === 'punching') { ctx.fillStyle = 'white'; ctx.fillRect(this.reach/2, -5, 12, 12); }
+            if (this.isMech) { ctx.fillStyle = '#444'; ctx.fillRect(-25, -25, 50, 50); ctx.fillStyle = '#708090'; ctx.fillRect(-20, -20, 40, 40); ctx.fillStyle = 'cyan'; ctx.fillRect(10, -5, 15, 10); } 
+            else { 
+                ctx.fillStyle = this.color; 
+                if (this.deflectArmorTimer > 0) { ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.strokeRect(-15, -15, 30, 30); ctx.fillStyle = 'silver'; }
+                ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h); 
+                if (this.state === 'punching') { ctx.fillStyle = 'white'; ctx.fillRect(this.reach/2, -5, 12, 12); } 
+            }
             ctx.restore();
+            
+            if (this.magPushing && this.magnetEnergy > 0) {
+                ctx.beginPath(); ctx.arc(this.x+13, this.y+13, 160, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.4)'; ctx.lineWidth = 4; ctx.stroke();
+            }
+            if (this.magPulling && this.magnetEnergy > 0) {
+                ctx.beginPath(); ctx.arc(this.x+13, this.y+13, 180, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)'; ctx.lineWidth = 4; ctx.stroke();
+            }
         }
     }
 
-    const player = new Character(400, 500, '#ff0000', true);
+    const player = new Character(400, 500, 'red', true);
     const keys = {};
 
     // --- SOCKET NETWORKING ---
     socket.on('init', (data) => {
         myId = data.id;
-        for (let id in data.players) {
-            if (id !== myId) {
-                remotePlayers[id] = data.players[id];
-            } else {
-                player.color = data.players[id].color;
-            }
-        }
+        for (let id in data.players) { if (id !== myId) remotePlayers[id] = data.players[id]; else player.color = data.players[id].color; }
     });
-
-    socket.on('playerJoined', (pData) => {
-        remotePlayers[pData.id] = pData;
-    });
-
-    socket.on('playerUpdated', (pData) => {
-        if (remotePlayers[pData.id]) {
-            Object.assign(remotePlayers[pData.id], pData);
-        }
-    });
-
-    socket.on('playerLeft', (id) => {
-        delete remotePlayers[id];
-    });
-
+    socket.on('playerJoined', (pData) => { remotePlayers[pData.id] = pData; });
+    socket.on('playerUpdated', (pData) => { if (remotePlayers[pData.id]) Object.assign(remotePlayers[pData.id], pData); });
+    socket.on('playerLeft', (id) => { delete remotePlayers[id]; });
     socket.on('remotePlayerAction', (data) => {
         if (data.type === 'applyForce' && data.targetId === myId) {
             player.applyForce(data.fromX, data.fromY, data.power);
@@ -218,20 +331,48 @@
 
     window.onkeydown = e => {
         const k = e.key.toLowerCase(); keys[k] = true;
+        
+        if (k === 'q') {
+            if (equippedAbility === 'Deflect') { player.useAbility('RepulsionBubble'); return; }
+            if (equippedAbility === 'Magnet') { player.magPulling = true; return; }
+            if (equippedAbility === 'Bounty Hunter' && gameState === 'ARENA') { projectiles.push({x: player.x+13, y: player.y+13, vx: Math.cos(player.lookAngle)*7, vy: Math.sin(player.lookAngle)*7, type: 'rollermine', owner: player, life: 400}); return; }
+            if (equippedAbility === 'Farmer') {
+                crops.forEach(c => { if (Math.hypot(c.x - player.x, c.y - player.y) < 120) { c.corrupted = true; c.life = 60 * 60 * 5; } });
+                createExplosion(player.x, player.y, 'purple', 25); return;
+            }
+        }
+
         if (k === 'z') {
+            if (brewingPot && Math.hypot(player.x+13 - brewingPot.x, player.y+13 - brewingPot.y) < 60) { brewingPot.index = (brewingPot.index + 1) % potionTypes.length; inventory = { name: potionTypes[brewingPot.index], uses: 6 }; invLabel.innerText = `${inventory.name} (${inventory.uses})`; }
             pedestals.filter(p => p.room === gameState).forEach(p => {
                 if (Math.hypot(player.x - p.x, player.y - p.y) < 60) {
                     let ab = abilities[p.ability];
-                    if (unlocked.includes(p.ability)) { equippedAbility = p.ability; eqLabel.innerText = p.ability; } 
-                    else if (punches >= ab.cost) { punches -= ab.cost; punchLabel.innerText = punches; unlocked.push(p.ability); equippedAbility = p.ability; eqLabel.innerText = p.ability; }
+                    if (ab.type === 'normal') { if (unlocked.includes(p.ability)) { equippedAbility = p.ability; eqLabel.innerText = p.ability; } else if (punches >= ab.cost) { punches -= ab.cost; punchLabel.innerText = punches; unlocked.push(p.ability); equippedAbility = p.ability; eqLabel.innerText = p.ability; } }
+                    else if (ab.type === 'badge' && badges[ab.req]) { equippedAbility = p.ability; eqLabel.innerText = p.ability; }
                 }
             });
+            if (gameState === 'ATTIC') { if (Math.hypot(player.x+13 - mapItems.cauldron.x, player.y+13 - mapItems.cauldron.y) < 70) { if (equippedAbility === 'Fireball' || equippedAbility === 'Cake') { badges.alchemist = true; showToast('Alchemist'); } } }
         }
-        if (k === 'e') player.useAbility(equippedAbility);
+
+        if (k === 'e') {
+            if (inventory.uses > 0) { usePotion(inventory.name); inventory.uses--; invLabel.innerText = inventory.uses > 0 ? `${inventory.name} (${inventory.uses})` : "None"; return; } 
+            if (equippedAbility === 'Magnet') player.magPushing = true;
+            else player.useAbility(equippedAbility);
+        }
         if (k === '1') { gameState = 'LOBBY'; player.x = 400; player.y = 500; }
     };
 
-    window.onkeyup = e => { const k = e.key.toLowerCase(); keys[k] = false; };
+    window.onkeyup = e => {
+        const k = e.key.toLowerCase(); keys[k] = false;
+        if (k === 'e' && equippedAbility === 'Magnet') player.magPushing = false;
+        if (k === 'q' && equippedAbility === 'Magnet') player.magPulling = false;
+    };
+
+    function usePotion(name) {
+        if (name === "Speed Potion") player.speed += 3; if (name === "Jump Potion") { player.vx = 0; player.vy = -20; player.state = 'ragdoll'; }
+        if (name === "Fungal Field Potion" || name === "Slowness Potion" || name === "Repulsion Potion") { projectiles.push({x: player.x+13, y: player.y+13, vx: Math.cos(player.lookAngle)*10, vy: Math.sin(player.lookAngle)*10, type: name, owner: player}); }
+    }
+
     window.onmousemove = e => { const r = canvas.getBoundingClientRect(); mouseX = e.clientX - r.left; mouseY = e.clientY - r.top; };
     window.onclick = () => { if(gameState === 'ARENA') player.punch(); };
     function isColliding(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
@@ -239,7 +380,6 @@
     function loop() {
         ctx.clearRect(0, 0, 800, 800);
         
-        // Sync player position to network
         socket.emit('updateState', {
             x: player.x, y: player.y, vx: player.vx, vy: player.vy,
             lookAngle: player.lookAngle, state: player.state, angle: player.angle,
@@ -248,17 +388,44 @@
 
         if (gameState === 'LOBBY') {
             ctx.fillStyle = '#1e90ff'; ctx.fillRect(50,50,700,700);
+            ctx.fillStyle = 'white'; ctx.fillRect(portals.secret.x, portals.secret.y, portals.secret.w, portals.secret.h);
             ctx.fillStyle = '#00ffff'; ctx.fillRect(portals.arena.x, portals.arena.y, portals.arena.w, portals.arena.h);
         } else if (gameState === 'ARENA') {
             ctx.fillStyle = '#3B7D23'; ctx.fillRect(0,0,800,800);
+            arenaSolids.forEach(s => { if(!s.hidden) { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h); } });
+            ctx.fillStyle = portals.atticDoor.color; ctx.fillRect(portals.atticDoor.x, portals.atticDoor.y, portals.atticDoor.w, portals.atticDoor.h);
+            ctx.fillStyle = mapItems.mushroom.color; ctx.fillRect(mapItems.mushroom.x, mapItems.mushroom.y, mapItems.mushroom.w, mapItems.mushroom.h);
+
+            for (let i = crops.length - 1; i >= 0; i--) {
+                let c = crops[i]; c.growTimer--; c.life--;
+                ctx.fillStyle = c.corrupted ? 'purple' : 'lime'; ctx.fillRect(c.x, c.y, 12, 12);
+                if (c.growTimer <= 0) {
+                    ctx.fillStyle = 'yellow'; ctx.fillRect(c.x-2, c.y-2, 16, 16);
+                    if (Math.hypot(player.x - c.x, player.y - c.y) < 30) {
+                        if (c.type === 0) player.vy = -20;
+                        crops.splice(i, 1); continue;
+                    }
+                }
+                if (c.life <= 0) crops.splice(i, 1);
+            }
+        } else if (gameState === 'SECRET') {
+            ctx.fillStyle = '#111'; ctx.fillRect(50,50,700,700);
+            ctx.fillStyle = mapItems.cake.color; ctx.fillRect(mapItems.cake.x, mapItems.cake.y, mapItems.cake.w, mapItems.cake.h);
+            ctx.fillStyle = 'black'; ctx.fillRect(portals.secretExit.x, portals.secretExit.y, portals.secretExit.w, portals.secretExit.h);
+        } else if (gameState === 'ATTIC') {
+            ctx.fillStyle = '#3d2b1f'; ctx.fillRect(0,0,800,800);
+            ctx.fillStyle = mapItems.cauldron.color; ctx.beginPath(); ctx.arc(mapItems.cauldron.x, mapItems.cauldron.y, mapItems.cauldron.r, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = mapItems.cobweb.color; ctx.fillRect(mapItems.cobweb.x, mapItems.cobweb.y, mapItems.cobweb.w, mapItems.cobweb.h);
+            ctx.fillStyle = portals.atticExit.color; ctx.fillRect(portals.atticExit.x, portals.atticExit.y, portals.atticExit.w, portals.atticExit.h);
         }
 
+        if (brewingPot) { ctx.fillStyle = '#444'; ctx.fillRect(brewingPot.x, brewingPot.y, 40, 40); brewingPot.timer--; if (brewingPot.timer <= 0) brewingPot = null; }
+        
         pedestals.filter(p => p.room === gameState).forEach(p => {
             let ab = abilities[p.ability]; ctx.fillStyle = '#666'; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.fillStyle = ab.color; ctx.beginPath(); ctx.arc(p.x+20, p.y-10, 15, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = 'white'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.fillText(p.ability, p.x+20, p.y+55);
         });
 
-        // Draw Remote Players
         Object.values(remotePlayers).forEach(p => {
             if (p.gameState === gameState) {
                 ctx.save(); ctx.translate(p.x + p.w/2, p.y + p.h/2);
@@ -269,23 +436,90 @@
             }
         });
 
-        // Render Projectiles
-        for (let i = projectiles.length - 1; i >= 0; i--) {
-            let p = projectiles[i];
-            p.x += p.vx; p.y += p.vy;
-            ctx.fillStyle = '#ff4500'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
-
-            Object.values(remotePlayers).forEach(en => {
-                if (en.gameState === gameState && Math.hypot(en.x+13-p.x, en.y+13-p.y) < 25) {
-                    socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: p.x, fromY: p.y, power: 15 });
-                    projectiles.splice(i, 1);
-                }
-            });
+        for (let i = warningCircles.length - 1; i >= 0; i--) {
+            let s = warningCircles[i]; s.timer--;
+            ctx.strokeStyle = 'yellow'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(s.x, s.y, 40, 0, Math.PI*2); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,255,0,0.2)'; ctx.fill();
+            if (s.timer <= 0) {
+                createExplosion(s.x, s.y, 'cyan', 25);
+                ctx.fillStyle = 'white'; ctx.fillRect(s.x-10, 0, 20, 800); 
+                Object.values(remotePlayers).forEach(t => { if(t.gameState === gameState && Math.hypot(t.x+13-s.x, t.y+13-s.y) < 50) {
+                    socket.emit('playerAction', { type: 'applyForce', targetId: t.id, fromX: s.x, fromY: s.y, power: 35 });
+                }});
+                warningCircles.splice(i, 1);
+            }
         }
 
-        player.update();
-        player.draw();
-        requestAnimationFrame(loop);
+        for (let i = repulsionBubbles.length - 1; i >= 0; i--) {
+            let b = repulsionBubbles[i]; b.x += b.vx; b.y += b.vy; b.timer--;
+            ctx.beginPath(); ctx.arc(b.x, b.y, 55, 0, Math.PI*2); ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)'; ctx.lineWidth = 3; ctx.stroke();
+            Object.values(remotePlayers).forEach(en => { if(en.gameState === gameState && Math.hypot(en.x-b.x, en.y-b.y) < 70) {
+                socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: b.x, fromY: b.y, power: 5 });
+            }});
+            if (b.timer <= 0) repulsionBubbles.splice(i, 1);
+        }
+
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i]; 
+
+            if (p.type === 'javelin') {
+                if (!p.stuck) {
+                    p.x += p.vx; p.y += p.vy;
+                    let hit = false;
+                    Object.values(remotePlayers).forEach(t => { if(t.gameState === gameState && Math.hypot(t.x+13-p.x, t.y+13-p.y) < 25) { 
+                        p.stuck = t; p.vx = 0; p.vy = 0; hit = true; 
+                        socket.emit('playerAction', { type: 'applyForce', targetId: t.id, fromX: p.x, fromY: p.y, power: 5 });
+                    }});
+                    let solids = arenaSolids.filter(s=>!s.hidden);
+                    if (solids.some(s => p.x > s.x && p.x < s.x+s.w && p.y > s.y && p.y < s.y+s.h)) { p.explode(); projectiles.splice(i, 1); continue; }
+                } else {
+                    let st = remotePlayers[p.stuck.id];
+                    if (st) { p.x = st.x + 13; p.y = st.y + 13; } else { p.explode(); }
+                }
+                p.fuse--; if(p.fuse <= 0) p.explode();
+                if(p.dead) { projectiles.splice(i, 1); continue; }
+                ctx.strokeStyle = 'yellow'; ctx.lineWidth = 4; ctx.beginPath();
+                let ang = Math.atan2(p.vy, p.vx); if(p.stuck) ang = 0;
+                ctx.moveTo(p.x - Math.cos(ang)*15, p.y - Math.sin(ang)*15); ctx.lineTo(p.x + Math.cos(ang)*15, p.y + Math.sin(ang)*15); ctx.stroke();
+                continue;
+            }
+
+            p.x += p.vx; p.y += p.vy;
+            
+            if (p.type === 'rollermine') {
+                p.life--;
+                let targets = Object.values(remotePlayers).filter(t => t.gameState === gameState);
+                targets.sort((a,b) => Math.hypot(a.x-p.x, a.y-p.y) - Math.hypot(b.x-p.x, b.y-p.y));
+                if (targets.length > 0) {
+                    let t = targets[0]; let ang = Math.atan2(t.y-p.y, t.x-p.x);
+                    p.vx += Math.cos(ang)*0.5; p.vy += Math.sin(ang)*0.5;
+                    ctx.strokeStyle = 'cyan'; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(t.x+13, t.y+13); ctx.stroke(); ctx.setLineDash([]);
+                }
+                p.vx *= 0.95; p.vy *= 0.95;
+                ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = 'cyan'; ctx.lineWidth = 2; ctx.stroke();
+                if (p.life <= 0) { projectiles.splice(i,1); continue; }
+            } else {
+                ctx.fillStyle = p.type === 'rocket' ? 'red' : (p.type === 'beam' ? 'yellow' : (p.type === 'cake' ? '#ffc0cb' : '#ff4500'));
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.type === 'rocket' ? 8 : 4, 0, Math.PI*2); ctx.fill();
+            }
+
+            let hit = false;
+            Object.values(remotePlayers).forEach(en => {
+                if(en.gameState === gameState && Math.hypot(en.x+13-p.x, en.y+13-p.y) < 25) {
+                    socket.emit('playerAction', { type: 'applyForce', targetId: en.id, fromX: p.x, fromY: p.y, power: 15 });
+                    hit = true;
+                }
+            });
+            if (hit || p.x < 0 || p.x > 800 || p.y < 0 || p.y > 800) projectiles.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let part = particles[i]; part.x += part.vx; part.y += part.vy; part.alpha -= part.decay; 
+            if (part.alpha <= 0) particles.splice(i, 1); else { ctx.save(); ctx.globalAlpha = part.alpha; ctx.fillStyle = part.color; ctx.fillRect(part.x, part.y, part.size, part.size); ctx.restore(); }
+        }
+
+        player.update(); player.draw(); requestAnimationFrame(loop);
     }
     loop();
 </script>
